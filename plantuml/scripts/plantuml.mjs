@@ -16,7 +16,6 @@ import { deflateRawSync } from "node:zlib";
 
 const ALPHABET = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz-_";
 const DEFAULT_SERVER = "https://www.plantuml.com/plantuml";
-const ERROR_PATTERN = /(syntax error|error line|cannot be parsed|contains errors|assumed diagram type)/i;
 
 function encode6bit(value) {
   if (value < 10) return String.fromCharCode(48 + value);
@@ -56,24 +55,44 @@ export function readDiagram(file) {
   return { text, problems };
 }
 
+/** One fetch with up to two retries on transient network/server errors. */
+async function fetchWithRetry(url, init, timeoutMs, attemptsLeft) {
+  try {
+    return await fetch(url, { ...init, signal: AbortSignal.timeout(timeoutMs) });
+  } catch (error) {
+    if (attemptsLeft > 0 && /fetch failed|timed? ?out|network|aborted/i.test(error?.message ?? "")) {
+      await new Promise((resolve) => setTimeout(resolve, 800));
+      return fetchWithRetry(url, init, timeoutMs, attemptsLeft - 1);
+    }
+    throw error;
+  }
+}
+
 async function serverRequest(server, format, text, encoded, timeoutMs) {
-  const signal = AbortSignal.timeout(timeoutMs);
   const url = `${server.replace(/\/+$/, "")}/${format}/${encoded}`;
   if (url.length <= 7000) {
-    return { response: await fetch(url, { signal }), kind: "GET url" };
+    return { response: await fetchWithRetry(url, {}, timeoutMs, 2), kind: "GET url" };
   }
   // The encoded URL would be too long for a GET; the server also accepts the raw source.
-  const response = await fetch(`${server.replace(/\/+$/, "")}/${format}`, {
+  const response = await fetchWithRetry(`${server.replace(/\/+$/, "")}/${format}`, {
     method: "POST",
     headers: { "Content-Type": "text/plain; charset=utf-8" },
     body: text,
-    signal,
-  });
+  }, timeoutMs, 2);
   return { response, kind: "POST body" };
 }
 
 async function check(server, text, encoded, timeoutMs) {
   const { response, kind } = await serverRequest(server, "txt", text, encoded, timeoutMs);
+  if (response.status >= 500) {
+    return {
+      ok: false,
+      message: `PlantUML server internal error (HTTP ${response.status}) — not a diagram problem; retry later or use a local renderer`,
+      body: "",
+      kind,
+      serverError: true,
+    };
+  }
   if (!response.ok) {
     const detail = (await response.text().catch(() => "")).replace(/\s+/g, " ").trim().slice(0, 300);
     return {
@@ -83,7 +102,11 @@ async function check(server, text, encoded, timeoutMs) {
     };
   }
   const body = await response.text();
-  const firstLine = body.split(/\r?\n/).find((line) => ERROR_PATTERN.test(line));
+  // Only trust lines that the renderer emits as diagnostics, not diagram labels
+  // that merely contain the words "error" or "syntax error".
+  const firstLine = body.split(/\r?\n/).find((line) =>
+    /^\s*(syntax error|error line|cannot be parsed|cannot create group|assumed diagram type|the diagram does not fit|has been already defined)/i.test(line),
+  );
   if (firstLine) return { ok: false, message: firstLine.trim(), body, kind };
   return { ok: true, body, kind };
 }
