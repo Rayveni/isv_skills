@@ -1,0 +1,60 @@
+{
+  "$schema": "./sections.schema.json",
+  "comment": "Sections are derived from model tags/attributes, not from hardcoded name lists. A model appears in a section when it matches the rule. Empty sections are rendered with an explicit 'no qualifying free models' note.",
+  "sections": [
+    {
+      "id": "plantuml",
+      "title": "PlantUML Diagram Generation",
+      "rule": { "anyTag": ["coding"], "preferTag": "reasoning" },
+      "limit": 10
+    },
+    {
+      "id": "code-analysis",
+      "title": "Code Analysis / Technical Documentation",
+      "rule": { "anyTag": ["coding", "long_context"] },
+      "limit": 10
+    },
+    {
+      "id": "general-reasoning",
+      "title": "General Purpose / Reasoning",
+      "rule": { "anyTag": ["reasoning"] },
+      "limit": 10
+    },
+    {
+      "id": "long-context",
+      "title": "Long Context / Large Document Processing",
+      "rule": { "minContextTokens": 512000 },
+      "limit": 10
+    },
+    {
+      "id": "multimodal",
+      "title": "Multimodal (Vision/Language)",
+      "rule": { "anyInputModality": ["image"] },
+      "limit": 10
+    },
+    {
+      "id": "agentic",
+      "title": "Agentic / Tool Use",
+      "rule": { "anyTag": ["agentic"] },
+      "limit": 10
+    },
+    {
+      "id": "web-search",
+      "title": "Web Search",
+      "rule": { "supportsWebSearch": true },
+      "limit": 10
+    },
+    {
+      "id": "image-generation",
+      "title": "Image Generation",
+      "rule": { "anyOutputModality": ["image"] },
+      "limit": 10
+    },
+    {
+      "id": "specialized",
+      "title": "Specialized / Safety & Domain Models",
+      "rule": { "anyTag": ["safety", "medical"] },
+      "limit": 10
+    }
+  ]
+}

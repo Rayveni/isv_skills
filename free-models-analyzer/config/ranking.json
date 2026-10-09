@@ -1,0 +1,16 @@
+{
+  "$schema": "./ranking.schema.json",
+  "comment": "Power score (0-100). Numeric factors are log-scaled against the max value in the current free-model set, so scores are relative to what is actually available today. Boolean tags contribute their full weight. Weights sum to 100.",
+  "weights": {
+    "activeParams": 35,
+    "context": 15,
+    "reasoning": 15,
+    "coding": 15,
+    "agentic": 8,
+    "multimodal": 7,
+    "audio": 3,
+    "video": 2
+  },
+  "longContextThreshold": 512000,
+  "tieBreaker": "name"
+}

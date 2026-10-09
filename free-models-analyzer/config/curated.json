@@ -1,0 +1,85 @@
+{
+  "$schema": "./curated.schema.json",
+  "comment": "Human-curated annotations keyed by OpenRouter model id. Facts (pricing, context, modalities, params from description) come from the sources; only subjective strengths and extra tags live here. Unknown models are still reported, with auto-derived strengths.",
+  "providers": {
+    "inclusionai": "InclusionAI",
+    "nvidia": "NVIDIA",
+    "google": "Google DeepMind",
+    "thinkingmachines": "Thinking Machines Lab",
+    "poolside": "Poolside",
+    "cohere": "Cohere",
+    "liquid": "Liquid AI",
+    "dots-studio": "Dots Studio",
+    "apodex": "Apodex"
+  },
+  "models": {
+    "inclusionai/ling-3.1-flash": {
+      "strengths_ru": "Гибридное рассуждение, крупный MoE (560B/25B), агенты и инструменты",
+      "tags": ["reasoning", "agentic", "coding"]
+    },
+    "inclusionai/ling-3.0-flash-sante:free": {
+      "strengths_ru": "Доменная модель для медицины и здоровья, MoE 124B/5.1B",
+      "tags": ["reasoning", "medical"]
+    },
+    "apodex/apodex-1.1-mini:free": {
+      "strengths_ru": "Исследовательские и прогнозные задачи, работа с файлами, данными и кодом",
+      "tags": ["reasoning", "agentic", "coding"]
+    },
+    "dots-studio/dots-3-note-preview:free": {
+      "strengths_ru": "Мультимодальная (текст+изображение), MoE 280B/16B, контекст 512K",
+      "tags": ["multimodal"]
+    },
+    "liquid/lfm-2.5-2.6b:free": {
+      "strengths_ru": "Компактная 2.6B, обязательное рассуждение, RAG и агентные сценарии",
+      "tags": ["reasoning", "agentic"]
+    },
+    "nvidia/nemotron-3.5-lightning:free": {
+      "strengths_ru": "Высокая пропускная способность, MoE 30B/3B, агентные нагрузки",
+      "tags": ["agentic"]
+    },
+    "nvidia/nemotron-3.5-content-safety:free": {
+      "strengths_ru": "Guardrail-модель модерации входов и выходов, 4B на базе Gemma-3-4B",
+      "tags": ["safety"]
+    },
+    "nvidia/nemotron-3-ultra-550b-a55b:free": {
+      "strengths_ru": "Флагманский frontier-reasoning и оркестрация, гибрид Transformer-Mamba, 550B/55B, контекст 1M",
+      "tags": ["reasoning", "agentic", "coding"]
+    },
+    "nvidia/nemotron-3-super-120b-a12b:free": {
+      "strengths_ru": "Мультиагентные приложения, эффективный MoE 120B/12B",
+      "tags": ["agentic", "reasoning", "coding"]
+    },
+    "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free": {
+      "strengths_ru": "Omni-модель восприятия: текст, изображение, аудио, видео; 30B/3B",
+      "tags": ["multimodal", "video", "audio", "reasoning"]
+    },
+    "thinkingmachines/inkling:free": {
+      "strengths_ru": "Открытая мультимодальная MoE 975B/41B, рассуждения с уровнями effort, контекст 1M",
+      "tags": ["reasoning", "multimodal", "audio"]
+    },
+    "thinkingmachines/inkling-small:free": {
+      "strengths_ru": "Меньшая версия Inkling, MoE 276B/12B, мультимодальность, уровни effort",
+      "tags": ["reasoning", "multimodal", "audio"]
+    },
+    "poolside/laguna-s-2.1:free": {
+      "strengths_ru": "Кодинг-агент, 118B/8B, 70.2% на Terminus",
+      "tags": ["coding", "agentic"]
+    },
+    "poolside/laguna-xs-2.1:free": {
+      "strengths_ru": "Лёгкий кодинг-агент 33B/3B, быстрый итерации",
+      "tags": ["coding", "agentic"]
+    },
+    "cohere/north-mini-code:free": {
+      "strengths_ru": "Агентный кодинг от Cohere, разреженный MoE 30B/3B",
+      "tags": ["coding", "agentic"]
+    },
+    "google/gemma-4-31b-it:free": {
+      "strengths_ru": "Плотная мультимодальная модель 30.7B, configurable thinking, текст+изображение+видео",
+      "tags": ["multimodal", "video", "reasoning"]
+    },
+    "google/gemma-4-26b-a4b-it:free": {
+      "strengths_ru": "MoE 25.2B/3.8B, мультимодальность (текст+изображение+видео), эффективность",
+      "tags": ["multimodal", "video"]
+    }
+  }
+}

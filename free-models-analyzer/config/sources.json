@@ -1,0 +1,39 @@
+{
+  "$schema": "./sources.schema.json",
+  "defaults": {
+    "timeoutMs": 30000,
+    "retries": 3,
+    "retryBaseMs": 1000,
+    "cacheTtlHours": 24
+  },
+  "sources": [
+    {
+      "id": "openrouter",
+      "kind": "openrouter_api",
+      "url": "https://openrouter.ai/api/v1/models",
+      "priority": 1,
+      "note": "Primary factual source: structured JSON with pricing, context, modalities."
+    },
+    {
+      "id": "orca",
+      "kind": "jsonld_itemlist",
+      "url": "https://www.orcarouter.ai/ru/models?modalityTab=text&price=free",
+      "priority": 2,
+      "note": "JSON-LD ItemList: model ids only. Prices/context enriched from OpenRouter."
+    },
+    {
+      "id": "kilo",
+      "kind": "kilo_flight",
+      "url": "https://kilo.ai/landing/free-models",
+      "priority": 3,
+      "note": "Next.js page; JSON-LD ItemList embedded in flight payload (model names + URLs)."
+    },
+    {
+      "id": "tokenreply",
+      "kind": "unsupported",
+      "url": "https://www.tokenreply.com/models?tag=free",
+      "priority": 4,
+      "note": "JS-rendered catalog without a public API or embedded JSON. Declared unsupported until a parser is added; listed for completeness."
+    }
+  ]
+}

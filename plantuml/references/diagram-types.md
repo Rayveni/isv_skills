@@ -11,6 +11,8 @@ Read this when the request's dominant question is unclear, or when you need a st
 
 Ask "what will the reader do with this picture?" — a debugging aid wants a sequence, a design review wants components, a management update wants activity or comparison.
 
+The skeletons below are for the chat proposal: write the candidate in the user's language, post its full source, and let the user pick or correct before any file is written. Skeleton switching mid-conversation is normal — the variant is agreed in dialogue, not committed to disk on first guess.
+
 ## Activity (new syntax) — processes, algorithms, step-by-step
 
 Signals: процесс, алгоритм, шаги, сценарий, как это работает, workflow, BPMN, "from request to result", decision branches, manual vs automatic steps.
@@ -231,3 +233,5 @@ Notes: keep both sides on the same variant and the same element names so differe
 ## Checked against the renderer, not the docs
 
 PlantUML tolerates some sloppy syntax — an unterminated label can still parse and silently swallow following lines. Always render (or at least `check`) before delivering, and read the image for any diagram with long non-ASCII labels.
+
+Checking uses a scratch copy in the temp directory, never a file in the user's project (`SKILL.md` §3, "Propose in chat"). The diagram reaches the user's disk only after they confirm the save; a variant shown in chat is a proposal, not a saved artifact.
