@@ -4,6 +4,12 @@ description: >-
   {{One sentence: what this skill turns into what.}}
   Triggers (en): "{{trigger phrase}}", "{{another phrase}}".
   Triggers (ru): «{{триггер}}», «{{ещё триггер}}».
+# Optional keys (uncomment as needed):
+# whenToUse: Extra hint for the model's auto-selection.
+# metadata:
+#   tags: [example]
+# disable-model-invocation: false   # true = human-triggerable only
+# user-invocable: true              # false = hidden from user commands
 ---
 
 # {{Skill Title}}

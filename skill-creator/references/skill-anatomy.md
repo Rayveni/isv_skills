@@ -32,7 +32,7 @@ Everything after the closing `---` is the skill's instructions, loaded verbatim 
 
 - Keep it under ~500 lines. Move depth into `references/` and link it — the model can read those files on demand through the `skill`-reported directory.
 - Sections that earn their place: summary, language rule, when to use, process (numbered, tool-named), verification, quality.
-- Link siblings relatively: `[anatomy](references/anatomy.md)`. Paths resolve against the skill directory.
+- Link siblings relatively: `[this reference](<skill-anatomy.md>)` or `[a section](#frontmatter-contract)`. Paths resolve against the skill directory.
 
 ## Directory layout
 
@@ -41,6 +41,7 @@ Everything after the closing `---` is the skill's instructions, loaded verbatim 
 | `SKILL.md` | The skill itself | required |
 | `references/*.md` | Deep reference the body links to | read on demand |
 | `templates/*` | Documents copied into the user's workspace | copy, don't regenerate |
+| `examples/*` | Worked examples | link targets may be illustrative |
 | `scripts/*` | Executables the skill runs | zero-dep preferred; invoke by absolute path |
 
 ## Discovery and precedence

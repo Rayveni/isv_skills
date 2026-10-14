@@ -38,6 +38,7 @@ A skill is a directory under a skill root (see §Installation):
   SKILL.md          required — YAML frontmatter + Markdown body
   references/       optional — long supporting docs, linked from the body
   templates/        optional — fill-in documents the skill copies into the workspace
+  examples/         optional — worked examples (link targets are not required to exist)
   scripts/          optional — executables the skill runs (checkers, generators)
 ```
 
@@ -103,22 +104,24 @@ Run the validator before declaring the skill done:
 node <skill-directory>/scripts/validate.mjs <path/to/skill-dir-or-SKILL.md>
 ```
 
-It checks: frontmatter delimiters, YAML parses to an object, `name` passes the kebab-case grammar, `description` is a non-empty string, no legacy invocation keys, boolean invocation fields are well-formed, relative links in the body resolve to real files, and script files are syntactically valid (`node --check`). Fix everything it reports, then re-run until clean.
+It checks: frontmatter delimiters, YAML parses to an object (duplicate keys rejected), `name` passes the kebab-case grammar, `description` is a non-empty string, no legacy invocation keys, boolean invocation fields are well-formed (trailing `#` comments tolerated), relative Markdown links in the body resolve to real files (including `#fragment` targets), the body stays under the ~500-line house limit (advisory), and script files are syntactically valid (`node --check`). Fix everything it reports, then re-run until clean.
 
 Also self-check against the house patterns (read 1–2 existing skills in `/root/.dsh/skills/` for style) and the checklist in `references/skill-anatomy.md`.
 
 ### 5. Install
 
-The deployment's skill roots (from the filesystem provider, in precedence order — lower rank wins):
+The deployment's skill roots (from the filesystem provider, in precedence order — lower rank wins; full list in `references/skill-anatomy.md`):
 
-1. `<project>/.dsh/skills/` and `<project>/.agents/skills/` — per-project.
-2. Custom dirs from the profile's `cordis.patch.yml` (`customSkillDirs` of `@deepseek-ai/dsh-skill-filesystem`).
-3. `/root/.dsh/skills/` (user root, `$DSH_HOME/skills`) — **this machine's default install target**; `~/.agents/skills/` also works.
-4. Bundled preset skills (read-only).
+1. `<project>/.dsh/skills/` (rank 100) and `<project>/.agents/skills/` (rank 200) — per-project.
+2. Runtime provider (rank 250).
+3. Custom dirs from the profile's `cordis.patch.yml` (`customSkillDirs`, rank 300).
+4. `/root/.dsh/skills/` (rank 400, user root, `$DSH_HOME/skills`) — **this machine's default install target**.
+5. `$DSH_AGENTS_HOME` or `~/.agents/skills/` (rank 500).
+6. Bundled preset skills (rank 600, read-only).
 
 Install into `/root/.dsh/skills/<skill-name>/` by copying the validated directory there. If that path is not writable from the sandbox, fall back to the project root `.dsh/skills/` and tell the user which root was used.
 
-**Discovery:** the filesystem provider watches the skill roots and refreshes the catalog on change — a newly installed skill typically appears in the session's available-skills list without a restart (observed in this deployment). If it does not appear, start a new session; the catalog is rebuilt at session start.
+**Discovery:** the catalog is built at session start. The file watcher invalidates it on change, but a running session's advertised list is fixed — a newly installed skill appears in the **next** session. If it does not appear, start a new session.
 
 ### 6. Report
 
@@ -130,7 +133,7 @@ Symptoms → causes (all observed in this loader):
 
 - **Skill not listed at all** → file lacks frontmatter; first line is not exactly `---`; `name` violates the kebab-case grammar; `description` missing/empty; YAML is invalid; a legacy invocation key is present. Run the validator — it names the failing check.
 - **Description not shown / triggers weak** → description is where trigger phrases live; add the user's wording («триггеры» / "triggers") to it.
-- **Edits not picked up** → the watcher re-scans on file change and refreshes the catalog; if a stale catalog persists, start a new session.
+- **Edits not picked up** → the watcher invalidates the catalog on change, but the running session's advertised list is fixed; edits and new skills appear in the next session. If a stale catalog persists, start a new session.
 - **Body too long** → move sections into `references/` and link them.
 
 Never edit a skill in place without reading it fully first; keep its established structure and language rules.

@@ -1,36 +1,35 @@
-#!/usr/bin/env node
-/**
- * Skill validator for DSH directory-bundle skills.
- *
- * Checks a SKILL.md (or a directory containing one) against the loader's
- * acceptance rules (see @deepseek-ai/dsh-skill-filesystem):
- *   - frontmatter delimiters and YAML mapping shape
- *   - required non-empty `name` (kebab-case grammar) and `description`
- *   - invocation keys: only `disable-model-invocation` / `user-invocable`
- *   - boolean fields are well-formed
- *   - relative Markdown links in the body resolve to real files
- *   - scripts/ files pass `node --check`
- *
- * Zero dependencies (Node built-ins only). Exit 0 when clean, 1 otherwise;
- * prints one line per issue with its rule.
- *
- * Usage: node validate.mjs <path/to/SKILL.md | path/to/skill-dir>
- */
 import { execFileSync } from "node:child_process";
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
-import { dirname, isAbsolute, join, resolve } from "node:path";
+import { basename, dirname, isAbsolute, join, resolve } from "node:path";
 
 const NAME_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const BOOLEAN_WORDS = new Set(["true", "false", "yes", "no", "on", "off", "1", "0"]);
 const LEGACY_KEYS = ["disableModelInvocation", "modelInvocable", "userInvocable"];
 const INVOCATION_KEYS = ["disable-model-invocation", "user-invocable"];
+const BODY_LINE_LIMIT = 500;
 
 const issues = [];
 const warnings = [];
 
+function stripComment(value) {
+	let quote = null;
+	for (let i = 0; i < value.length; i += 1) {
+		const ch = value[i];
+		if (quote) {
+			if (ch === quote) quote = null;
+		} else if (ch === '"' || ch === "'") {
+			quote = ch;
+		} else if (ch === "#" && (i === 0 || /\s/.test(value[i - 1]))) {
+			return value.slice(0, i).trim();
+		}
+	}
+	return value.trim();
+}
+
 /** Minimal YAML-subset parser for frontmatter: flat mappings, nested
  *  one-level mappings, block scalars (>- and |), quoted/plain scalars,
- *  inline arrays of scalars. Enough for every shipped skill file. */
+ *  inline arrays of scalars, trailing `#` comments. Enough for every
+ *  shipped skill file; rejects duplicate keys and unparseable lines. */
 function parseYamlSubset(text) {
 	const lines = text.split(/\r?\n/);
 	const root = {};
@@ -49,7 +48,12 @@ function parseYamlSubset(text) {
 		const match = /^([A-Za-z0-9_-]+):(.*)$/.exec(line);
 		if (!match) throw new Error(`cannot parse line: ${line}`);
 		const [, key, rest] = match;
-		let value = rest.trim();
+		// Duplicate keys are rejected regardless of value shape
+		// (scalar, block scalar, or nested mapping) — otherwise the
+		// later one silently overwrites the earlier, which is a real
+		// semantic loss for passthrough keys like `metadata`.
+		if (Object.hasOwn(target, key)) throw new Error(`duplicate key "${key}" in frontmatter`);
+		let value = stripComment(rest.trim());
 		if (value === "" || value === ">" || value === ">-" || value === "|" || value === "|-") {
 			// Block scalar (or empty value starting one).
 			const isBlock = value !== "";
@@ -110,6 +114,7 @@ function parseYamlSubset(text) {
 }
 
 function splitFrontmatter(raw) {
+	if (raw.charCodeAt(0) === 0xfeff) raw = raw.slice(1);
 	const firstNewline = raw.indexOf("\n");
 	if (firstNewline < 0) return { error: "file is a single line; missing frontmatter" };
 	if (raw.slice(0, firstNewline).replace(/\r$/, "") !== "---")
@@ -126,39 +131,68 @@ function splitFrontmatter(raw) {
 	return { error: "unterminated frontmatter" };
 }
 
-function checkLinks(body, skillDir, sourceFile) {
+function checkLinks(body, file, exempt) {
+	// Relative links resolve against the directory of the file containing
+	// them (standard Markdown semantics — how a reader interprets them).
+	const baseDir = dirname(file);
 	const linkRe = /\[[^\]]*\]\(([^)\s]+)\)/g;
 	let m;
 	while ((m = linkRe.exec(body)) !== null) {
-		const target = m[1];
-		// Placeholders (e.g. "<scratch>/v1.png") and anchors are not file links.
-		if (/^(https?:|mailto:|#)/.test(target)) continue;
-		if (/[<>]/.test(target)) continue;
-		const resolved = isAbsolute(target) ? target : resolve(skillDir, target);
+		const rawTarget = m[1];
+		// Absolute URLs, mailto links, and bare anchors are not file links.
+		if (/^(https?:|mailto:|#)/.test(rawTarget)) continue;
+		const target = stripFragment(rawTarget);
+		// `<...>`-wrapped destinations are normal Markdown syntax, not
+		// placeholders: unwrap them and resolve like any other link.
+		const unwrapped = target.replace(/^<([^<>]*)>$/, "$1");
+		if (/[<>]/.test(unwrapped)) continue; // genuinely a placeholder (e.g. <scratch>/v1.png)
+		const resolved = isAbsolute(unwrapped) ? unwrapped : resolve(baseDir, unwrapped);
 		if (existsSync(resolved)) continue;
 		// Template/example files legitimately reference files the user will
-		// create; only the skill's own SKILL.md is held to existing targets.
-		if (resolve(sourceFile) !== resolve(skillDir, "SKILL.md")) continue;
-		issues.push(`link target does not exist: ${target}`);
+		// create (with or without a #fragment); the skill's own markdown
+		// (SKILL.md, references/) and flat skills are held to existing targets.
+		if (exempt) continue;
+		issues.push(`link target does not exist: ${rawTarget}`);
 	}
 }
 
-function checkFileLinks(file, skillDir) {
+/** Strip a `#fragment` suffix from a Markdown destination, leaving the path. */
+function stripFragment(destination) {
+	const hash = destination.indexOf("#");
+	return hash < 0 ? destination : destination.slice(0, hash);
+}
+
+function checkFileLinks(file, exempt = false) {
 	if (!/\.md$/i.test(file)) return;
 	const body = readFileSync(file, "utf8");
-	checkLinks(body, skillDir, file);
+	checkLinks(body, file, exempt);
+}
+
+/** Walk a subtree's markdown files; nested dirs need not contain SKILL.md. */
+function walkMd(dir, exempt) {
+	if (!existsSync(dir)) return;
+	for (const entry of readdirSync(dir)) {
+		const full = join(dir, entry);
+		if (statSync(full).isDirectory()) walkMd(full, exempt);
+		else checkFileLinks(full, exempt);
+	}
 }
 
 function checkTreeLinks(skillDir) {
-	checkFileLinks(join(skillDir, "SKILL.md"), skillDir);
-	for (const sub of ["references", "templates", "examples"]) {
-		const dir = join(skillDir, sub);
-		if (!existsSync(dir)) continue;
-		for (const entry of readdirSync(dir)) {
-			const full = join(dir, entry);
-			if (statSync(full).isDirectory()) checkTreeLinks(full);
-			else checkFileLinks(full, skillDir);
-		}
+	const skillFile = join(skillDir, "SKILL.md");
+	checkFileLinks(skillFile);
+	walkMd(join(skillDir, "references"), false);
+	walkMd(join(skillDir, "templates"), true);
+	walkMd(join(skillDir, "examples"), true);
+}
+
+/** Advisory: the loader accepts any length, but the house style keeps
+ *  the body under ~500 lines; deeper detail belongs in references/. */
+function checkBodyLength(body) {
+	const lines = body.split(/\r?\n/);
+	const meaningful = lines.filter((l) => l.trim() !== "");
+	if (meaningful.length > BODY_LINE_LIMIT) {
+		warnings.push(`body is ${meaningful.length} non-empty lines (house limit ~${BODY_LINE_LIMIT}); move detail into references/`);
 	}
 }
 
@@ -182,21 +216,38 @@ function main() {
 		process.exit(2);
 	}
 	const target = resolve(arg);
+	if (!existsSync(target)) {
+		console.error(`not found: ${target}`);
+		process.exit(1);
+	}
 	let skillFile = target;
 	let skillDir = dirname(target);
+	let entryIsFlatFile = false;
 	if (statSync(target).isDirectory()) {
 		skillDir = target;
 		skillFile = join(target, "SKILL.md");
-	}
-	if (!existsSync(skillFile)) {
-		console.error(`not found: ${skillFile}`);
-		process.exit(1);
+		if (!existsSync(skillFile)) {
+			// A directory without SKILL.md is not a skill bundle; it may be a
+			// subdirectory (references/, etc.) or an empty scaffold.
+			console.error(`not a skill bundle: no SKILL.md in ${target}`);
+			process.exit(1);
+		}
+	} else if (basename(target) !== "SKILL.md") {
+		// Flat skill: a bare *.md file with its own frontmatter.
+		entryIsFlatFile = true;
 	}
 
 	const raw = readFileSync(skillFile, "utf8");
 	const { fm, body, error } = splitFrontmatter(raw);
 	if (error) {
-		console.error(`FAIL frontmatter: ${error}`);
+		// A non-SKILL.md file without frontmatter is not a skill file
+		// (e.g. a reference doc) — say so instead of a bare "first line
+		// must be exactly ---", which reads like a formatting bug.
+		if (entryIsFlatFile && error !== "unterminated frontmatter: no closing ---") {
+			console.error(`not a skill file: ${target} has no frontmatter (first line must be exactly ---)`);
+		} else {
+			console.error(`FAIL frontmatter: ${error}`);
+		}
 		process.exit(1);
 	}
 
@@ -228,11 +279,17 @@ function main() {
 	}
 
 	const dirName = basename(skillDir);
-	if (typeof name === "string" && NAME_RE.test(name) && dirName !== name && dirName !== ".")
+	const isBundle = !entryIsFlatFile && dirName !== "" && dirName !== ".";
+	if (isBundle && typeof name === "string" && NAME_RE.test(name) && dirName !== name)
 		warnings.push(`directory name "${dirName}" differs from frontmatter name "${name}" (convention: they match)`);
 
-	checkTreeLinks(skillDir);
-	checkScripts(skillDir);
+	checkBodyLength(body);
+
+	if (entryIsFlatFile) checkFileLinks(skillFile);
+	else {
+		checkTreeLinks(skillDir);
+		checkScripts(skillDir);
+	}
 
 	for (const warning of warnings) console.log(`WARN ${warning}`);
 	if (issues.length === 0) {
@@ -241,11 +298,6 @@ function main() {
 	}
 	for (const issue of issues) console.log(`FAIL ${issue}`);
 	process.exit(1);
-}
-
-function basename(p) {
-	const parts = p.split(/[\\/]/).filter(Boolean);
-	return parts[parts.length - 1] ?? "";
 }
 
 main();
